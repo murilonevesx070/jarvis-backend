@@ -5,13 +5,11 @@ from google import genai
 from google.genai import types
 
 app = Flask(__name__)
-# Permitir requisições de qualquer origem (CORS)
 CORS(app)
 
-# Busca a chave nas variáveis de ambiente do Render OU usa a chave manual abaixo
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "COLE_SUA_CHAVE_AQUI_SE_NAO_USAR_ENV_VAR")
+# Cole sua API key entre as aspas abaixo OU configure como variável de ambiente no Render
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "SUA_CHAVE_API_AQUI")
 
-# Inicializa o cliente do Gemini
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 @app.route('/', methods=['GET'])
@@ -31,7 +29,6 @@ def chat():
         if not user_message:
             return jsonify({"response": "Comando não detectado, Mestre Murilo."}), 400
 
-        # Prompt com a personalidade do JARVIS
         prompt_sistema = (
             "Você é o JARVIS, a inteligência artificial ultra-avançada criada para auxiliar "
             "seu Mestre Murilo. Responda em Português do Brasil (pt-BR) com um tom elegante, "
@@ -42,12 +39,11 @@ def chat():
 
         full_prompt = f"{prompt_sistema}\n\n[Mestre Murilo]: {user_message}\n[JARVIS]:"
 
-        # Chamada para o modelo Gemini 2.5 Flash com pesquisa no Google ativada
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=full_prompt,
             config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())]  # Ativa busca na Internet
+                tools=[types.Tool(google_search=types.GoogleSearch())]  # Ativa busca na internet
             )
         )
 
@@ -64,4 +60,4 @@ def chat():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
+    

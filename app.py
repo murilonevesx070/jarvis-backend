@@ -1,61 +1,67 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import datetime
+from google import genai
+from google.genai import types
 
 app = Flask(__name__)
-# O CORS(app) libera o acesso para que o site do Lovable consiga conversar com seu PC
+# Permitir requisições de qualquer origem (CORS)
 CORS(app)
 
-@app.route('/get_status', methods=['GET'])
-def get_status():
-    """Rota para o Lovable verificar se o Jarvis está online"""
+# Busca a chave nas variáveis de ambiente do Render OU usa a chave manual abaixo
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "COLE_SUA_CHAVE_AQUI_SE_NAO_USAR_ENV_VAR")
+
+# Inicializa o cliente do Gemini
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+@app.route('/', methods=['GET'])
+def home():
     return jsonify({
         "status": "online",
-        "sistema": "Prism OS",
-        "mensagem": "Sistema Prism OS online, Mestre Murilo. Aguardando comandos."
-    }), 200
+        "service": "JARVIS AI Core",
+        "message": "Sistema JARVIS totalmente operacional e conectado à rede!"
+    })
 
-@app.route('/pergunta', methods=['POST'])
-def pergunta():
-    """Rota principal onde o Jarvis recebe e processa seus comandos"""
+@app.route('/chat', methods=['POST'])
+def chat():
     try:
-        data = request.get_json()
-        if not data or 'comando' not in data:
-            # Caso o Lovable envie o texto em outro campo (ex: 'texto' ou 'pergunta')
-            user_message = data.get('texto', data.get('pergunta', ''))
-        else:
-            user_message = data['comando']
-            
-        print(f"[MURILO]: {user_message}") # Mostra no seu terminal o que você digitou
-        
-        user_message_lower = user_message.lower()
-        resposta_texto = ""
+        data = request.get_json() or {}
+        user_message = data.get("message", "")
 
-        # --- LÓGICA DE COMANDOS DO JARVIS ---
-        if "ola jarvis" in user_message_lower or "olá jarvis" in user_message_lower:
-            resposta_texto = "Olá, Mestre Murilo. Sistema totalmente operacional. Como posso ajudar hoje?"
-            
-        elif "que horas" in user_message_lower or "hora" in user_message_lower:
-            hora_atual = datetime.datetime.now().strftime("%H:%M")
-            resposta_texto = f"Agora são exatamente {hora_atual}, Mestre."
-            
-        elif "quem é você" in user_message_lower or "quem e voce" in user_message_lower:
-            resposta_texto = "Eu sou o JARVIS, sua inteligência artificial baseada no Prism OS."
-            
-        else:
-            resposta_texto = "Comando recebido, Mestre Murilo. Processando informações."
+        if not user_message:
+            return jsonify({"response": "Comando não detectado, Mestre Murilo."}), 400
 
-        print(f"[JARVIS]: {resposta_texto}") # Mostra no seu terminal a resposta dele
-        
-        return jsonify({
-            "resposta": resposta_texto,
-            "status": "sucesso"
-        }), 200
+        # Prompt com a personalidade do JARVIS
+        prompt_sistema = (
+            "Você é o JARVIS, a inteligência artificial ultra-avançada criada para auxiliar "
+            "seu Mestre Murilo. Responda em Português do Brasil (pt-BR) com um tom elegante, "
+            "prestativo, inteligente e levemente irônico quando apropriado. "
+            "Você tem acesso à pesquisa na web em tempo real e deve usar informações atualizadas "
+            "para responder a qualquer pergunta do Mestre Murilo de forma clara e objetiva."
+        )
+
+        full_prompt = f"{prompt_sistema}\n\n[Mestre Murilo]: {user_message}\n[JARVIS]:"
+
+        # Chamada para o modelo Gemini 2.5 Flash com pesquisa no Google ativada
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=full_prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())]  # Ativa busca na Internet
+            )
+        )
+
+        resposta_texto = response.text if response.text else "Processamento concluído, Mestre. Sem resposta adicional."
+
+        return jsonify({"response": resposta_texto})
 
     except Exception as e:
-        print(f"Erro ao processar: {e}")
-        return jsonify({"resposta": "Desculpe Mestre, ocorreu um erro interno no meu sistema.", "status": "erro"}), 500
+        print(f"Erro ao processar comando: {e}")
+        return jsonify({
+            "response": f"Desculpe, Mestre Murilo. Ocorreu uma falha na minha rede neural ao processar o comando. (Detalhes: {str(e)})"
+        }), 500
 
 if __name__ == '__main__':
-    # host='0.0.0.0' é fundamental para o ngrok conseguir repassar as requisições
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
+

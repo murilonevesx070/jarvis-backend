@@ -1,24 +1,21 @@
 import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from google import genai
-from google.genai import types
+from openai import OpenAI
 
 app = Flask(__name__)
 CORS(app)
 
-# Cole sua API key entre as aspas abaixo OU configure como variável de ambiente no Render
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "SUA_CHAVE_API_AQUI")
+# Pega a chave OPENAI_API_KEY das variáveis de ambiente do Render
+# ou usa a chave informada manualmente abaixo
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "SUA_CHAVE_OPENAI_AQUI")
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Inicializa o cliente da OpenAI
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify({
-        "status": "online",
-        "service": "JARVIS AI Core",
-        "message": "Sistema JARVIS totalmente operacional e conectado à rede!"
-    })
+    return jsonify({"status": "online", "message": "JARVIS com OpenAI (ChatGPT) ativo!"})
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -29,33 +26,27 @@ def chat():
         if not user_message:
             return jsonify({"response": "Comando não detectado, Mestre Murilo."}), 400
 
-        prompt_sistema = (
-            "Você é o JARVIS, a inteligência artificial ultra-avançada criada para auxiliar "
-            "seu Mestre Murilo. Responda em Português do Brasil (pt-BR) com um tom elegante, "
-            "prestativo, inteligente e levemente irônico quando apropriado. "
-            "Você tem acesso à pesquisa na web em tempo real e deve usar informações atualizadas "
-            "para responder a qualquer pergunta do Mestre Murilo de forma clara e objetiva."
+        # Prompt de sistema para definir o tom do JARVIS
+        system_instructions = (
+            "Você é o JARVIS, a inteligência artificial criada para auxiliar seu Mestre Murilo. "
+            "Responda em Português do Brasil de forma inteligente, direta, cortês e levemente bem-humorada."
         )
 
-        full_prompt = f"{prompt_sistema}\n\n[Mestre Murilo]: {user_message}\n[JARVIS]:"
-
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=full_prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())]  # Ativa busca na internet
-            )
+        # Chamada ao modelo GPT da OpenAI
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",  # Modelo rápido, inteligente e econômico
+            messages=[
+                {"role": "system", "content": system_instructions},
+                {"role": "user", "content": user_message}
+            ]
         )
 
-        resposta_texto = response.text if response.text else "Processamento concluído, Mestre. Sem resposta adicional."
-
-        return jsonify({"response": resposta_texto})
+        resposta = completion.choices[0].message.content
+        return jsonify({"response": resposta})
 
     except Exception as e:
-        print(f"Erro ao processar comando: {e}")
-        return jsonify({
-            "response": f"Desculpe, Mestre Murilo. Ocorreu uma falha na minha rede neural ao processar o comando. (Detalhes: {str(e)})"
-        }), 500
+        print(f"Erro na requisição OpenAI: {e}")
+        return jsonify({"response": f"Desculpe, Mestre Murilo. Falha ao conectar à rede neural: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

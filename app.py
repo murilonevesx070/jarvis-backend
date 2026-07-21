@@ -4,28 +4,31 @@ from flask_cors import CORS
 from openai import OpenAI
 
 app = Flask(__name__)
-CORS(app)
+# Libera o CORS para todas as origens e rotas
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Pega a chave OPENAI_API_KEY que você cadastrou no Render
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify({"status": "online", "message": "JARVIS com OpenAI ativo!"})
+    return jsonify({"status": "online", "message": "JARVIS com OpenAI (ChatGPT) ativo!"})
 
-@app.route('/chat', methods=['POST'])
+@app.route('/chat', methods=['POST', 'OPTIONS'])
 def chat():
+    # Tratamento para requisição de pré-checagem do navegador (Preflight CORS)
+    if request.method == 'OPTIONS':
+        return '', 200
+
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         user_message = data.get("message", "")
 
         if not user_message:
             return jsonify({"response": "Comando não detectado, Mestre Murilo."}), 400
 
         if not client:
-            return jsonify({"response": "Erro: OPENAI_API_KEY não encontrada no Render."}), 500
+            return jsonify({"response": "Erro: Chave OPENAI_API_KEY não configurada no Render."}), 500
 
         system_instructions = (
             "Você é o JARVIS, assistente virtual ultra-inteligente criado para auxiliar seu Mestre Murilo. "
@@ -45,7 +48,7 @@ def chat():
 
     except Exception as e:
         print(f"Erro na requisição: {e}")
-        return jsonify({"response": f"Desculpe, Mestre Murilo. Falha no processamento: {str(e)}"}), 500
+        return jsonify({"response": f"Desculpe, Mestre Murilo. Ocorreu um erro no servidor: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

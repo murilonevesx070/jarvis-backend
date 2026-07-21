@@ -6,7 +6,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Define o idioma da Wikipédia para Português
+# Configura a Wikipédia para Português
 wikipedia.set_lang("pt")
 
 @app.route('/', methods=['GET'])
@@ -36,31 +36,30 @@ def chat():
                 "resposta": "Comando não detectado, Mestre Murilo."
             }), 400
 
-        # Normaliza a frase para minúsculas
         msg_clean = user_message.lower()
 
-        # Lista de cumprimentos
-        saudacoes = ["ola", "olá", "oi", "jarvis", "bom dia", "boa tarde", "boa noite", "fala jarvis", "hey jarvis"]
-
-        # 1. SE FOR UMA SAUDAÇÃO: Responde direto sem ir na internet
+        # 1. TRATAMENTO DE SAUDAÇÕES
+        saudacoes = ["ola", "olá", "oi", "jarvis", "bom dia", "boa tarde", "boa noite", "fala jarvis"]
         if any(s in msg_clean for s in saudacoes) and len(msg_clean.split()) <= 4:
             resposta_texto = "Olá, Mestre Murilo! Sistema Prism OS online e totalmente operacional. Em que posso ajudar?"
 
-        # 2. SE FOR UMA PERGUNTA OU PESQUISA: Busca na Wikipédia em Português
+        # 2. PESQUISA INTELIGENTE (Busca os títulos relevantes primeiro)
         else:
             try:
-                resumo = wikipedia.summary(user_message, sentences=2)
-                resposta_texto = f"Mestre Murilo, segundo minhas pesquisas: {resumo}"
-            except wikipedia.exceptions.DisambiguationError as e:
-                try:
-                    resumo = wikipedia.summary(e.options[0], sentences=2)
-                    resposta_texto = f"Mestre Murilo, encontrei o seguinte: {resumo}"
-                except Exception:
-                    resposta_texto = f"Mestre Murilo, o termo '{user_message}' possui vários significados. Pode detalhar melhor?"
-            except wikipedia.exceptions.PageError:
-                resposta_texto = f"Mestre Murilo, não encontrei registros diretos sobre '{user_message}', mas o sistema continua online."
-            except Exception:
-                resposta_texto = f"Desculpe, Mestre Murilo. Ocorreu uma instabilidade na consulta, mas continuo operacional."
+                # Pesquisa os artigos relacionados na Wikipédia
+                busca = wikipedia.search(user_message)
+                
+                if busca:
+                    # Pega o primeiro artigo encontrado
+                    top_resultado = busca[0]
+                    resumo = wikipedia.summary(top_resultado, sentences=2)
+                    resposta_texto = f"Mestre Murilo, segundo minhas pesquisas sobre '{top_resultado}': {resumo}"
+                else:
+                    resposta_texto = f"Mestre Murilo, não encontrei informações sobre '{user_message}' no momento."
+
+            except Exception as e:
+                print(f"Erro na Wikipédia: {e}")
+                resposta_texto = f"Desculpe, Mestre Murilo. Não consegui resgatar essa informação na Wikipédia agora."
 
         return jsonify({
             "response": resposta_texto,
